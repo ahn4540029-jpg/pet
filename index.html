@@ -60,7 +60,6 @@ input, textarea {
   position:fixed;
   top:10px;
   right:10px;
-  width:auto;
   padding:6px 10px;
   font-size:0.8rem;
   opacity:0.8;
@@ -75,9 +74,9 @@ input, textarea {
 <h1>길드 공용코어 목록</h1>
 <p class="tag">고철리카 문의 : 똘형</p>
 
-<div id="login" class="admin hidden">
+<div id="loginBox" class="admin hidden">
   <input type="password" id="pw" placeholder="관리자 비밀번호">
-  <button onclick="login()">접속</button>
+  <button onclick="adminLogin()">접속</button>
 </div>
 
 <div id="editor" class="admin hidden">
@@ -85,8 +84,7 @@ input, textarea {
   <button onclick="addCore()">공용코어 추가</button>
 </div>
 
-<input type="text" id="search" placeholder="검색 (짐 / 드 / 악 / 메 / 미 / 새 / 곤 / 힘 / 200 / 제스터)" oninput="renderCores()">
-
+<input type="text" id="search" placeholder="검색" oninput="renderCores()">
 <div id="coreList"></div>
 
 <h2>코어 대여자 목록</h2>
@@ -118,17 +116,21 @@ const db = getDatabase(app);
 const coresRef = ref(db, "cores");
 const rentersRef = ref(db, "renters");
 
+/* ================= DOM ================= */
+const loginBox = document.getElementById("loginBox");
+const editor = document.getElementById("editor");
+const renterEditor = document.getElementById("renterEditor");
+
 /* ================= 상태 ================= */
 const PASSWORD = "030219";
 let isAdmin = false;
 let cores = [];
 let renters = [];
 
-/* ================= UI ================= */
+/* ================= 관리자 ================= */
 window.toggleLogin = () => loginBox.classList.toggle("hidden");
 
-/* ================= 로그인 ================= */
-window.login = () => {
+window.adminLogin = () => {
   if(pw.value === PASSWORD){
     isAdmin = true;
     editor.classList.remove("hidden");
@@ -139,14 +141,14 @@ window.login = () => {
   } else alert("비밀번호 오류");
 };
 
-/* ================= Firebase 실시간 ================= */
-onValue(coresRef, snap => {
-  cores = snap.val() || [];
+/* ================= 실시간 동기화 ================= */
+onValue(coresRef, s => {
+  cores = s.val() || [];
   renderCores();
 });
 
-onValue(rentersRef, snap => {
-  renters = snap.val() || [];
+onValue(rentersRef, s => {
+  renters = s.val() || [];
   renderRenters();
 });
 
@@ -167,46 +169,29 @@ window.addCore = () => {
 
 window.editCore = i => {
   const v = prompt("수정", cores[i]);
-  if(v){
-    cores[i]=v;
-    set(coresRef, cores);
-  }
+  if(v){ cores[i]=v; set(coresRef, cores); }
 };
 
 window.delCore = i => {
-  if(confirm("삭제?")){
-    cores.splice(i,1);
-    set(coresRef, cores);
-  }
+  if(confirm("삭제?")){ cores.splice(i,1); set(coresRef, cores); }
 };
 
-function renderCores(){
+window.renderCores = () => {
   coreList.innerHTML="";
   const q = search.value.trim().toLowerCase();
 
   cores.forEach((t,i)=>{
-    const p = parseCore(t);
-    let ok = true;
-
-    if(q){
-      if(["짐","드","악","메","미","새","곤"].includes(q)) ok = p && p.type===q;
-      else if(["힘","운","속","날","정","석"].includes(q)) ok = p && p.attr===q;
-      else if(/^\d+$/.test(q)) ok = p && p.level===q;
-      else ok = t.toLowerCase().includes(q);
-    }
-
-    if(!ok) return;
-
-    const d = document.createElement("div");
+    if(q && !t.toLowerCase().includes(q)) return;
+    const d=document.createElement("div");
     d.className="item";
-    d.innerHTML = `<div>${t}</div>` +
-      (isAdmin ? `<div class="row">
+    d.innerHTML=`<div>${t}</div>`+
+      (isAdmin?`<div class="row">
         <button onclick="editCore(${i})">수정</button>
         <button onclick="delCore(${i})">삭제</button>
-      </div>` : "");
+      </div>`:"");
     coreList.appendChild(d);
   });
-}
+};
 
 /* ================= 대여자 ================= */
 window.addRenter = () => {
@@ -217,32 +202,26 @@ window.addRenter = () => {
 
 window.editRenter = i => {
   const v = prompt("수정", renters[i]);
-  if(v){
-    renters[i]=v;
-    set(rentersRef, renters);
-  }
+  if(v){ renters[i]=v; set(rentersRef, renters); }
 };
 
 window.delRenter = i => {
-  if(confirm("삭제?")){
-    renters.splice(i,1);
-    set(rentersRef, renters);
-  }
+  if(confirm("삭제?")){ renters.splice(i,1); set(rentersRef, renters); }
 };
 
-function renderRenters(){
+window.renderRenters = () => {
   renterList.innerHTML="";
   renters.forEach((r,i)=>{
     const d=document.createElement("div");
     d.className="item";
-    d.innerHTML = `<div>${r}</div>` +
-      (isAdmin ? `<div class="row">
+    d.innerHTML=`<div>${r}</div>`+
+      (isAdmin?`<div class="row">
         <button onclick="editRenter(${i})">수정</button>
         <button onclick="delRenter(${i})">삭제</button>
-      </div>` : "");
+      </div>`:"");
     renterList.appendChild(d);
   });
-}
+};
 </script>
 
 </body>
