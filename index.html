@@ -19,8 +19,8 @@ h2 { margin-top:24px; font-size:1.2rem; }
 
 button, input, textarea {
   box-sizing:border-box;
-  font-size:1rem;
-  padding:10px;
+  font-size:0.9rem;
+  padding:8px;
   margin:4px 0;
 }
 button {
@@ -32,7 +32,6 @@ button {
 button:hover { background:#444; }
 
 input, textarea {
-  width:100%;
   background:#1a1a1a;
   color:#fff;
   border:1px solid #333;
@@ -64,9 +63,8 @@ input, textarea {
   width:auto;
   padding:6px 10px;
   font-size:0.8rem;
-  opacity:0.7;
+  opacity:0.8;
 }
-#adminBtn:hover { opacity:1; }
 </style>
 </head>
 
@@ -77,113 +75,82 @@ input, textarea {
 <h1>길드 공용코어 목록</h1>
 <p class="tag">고철리카 문의 : 똘형</p>
 
-<div id="loginBox" class="admin hidden">
+<div id="login" class="admin hidden">
   <input type="password" id="pw" placeholder="관리자 비밀번호">
   <button onclick="login()">접속</button>
 </div>
 
 <div id="editor" class="admin hidden">
-  <textarea id="newText" rows="3" placeholder="새 공용코어 입력"></textarea>
+  <textarea id="newText" rows="2" placeholder="새 공용코어 입력"></textarea>
   <button onclick="addCore()">공용코어 추가</button>
 </div>
 
-<input type="text" id="search"
-  placeholder="검색 (짐 / 드 / 악 / 메 / 미 / 새 / 곤 / 힘 / 200 / 제스터)"
-  oninput="renderCores()">
+<input type="text" id="search" placeholder="검색 (짐 / 드 / 악 / 메 / 미 / 새 / 곤 / 힘 / 200 / 제스터)" oninput="renderCores()">
 
 <div id="coreList"></div>
 
 <h2>코어 대여자 목록</h2>
 
 <div id="renterEditor" class="admin hidden">
-  <textarea id="newRenter" rows="2"
-    placeholder="대여자 정보 입력 (예: 폭주제스터 → 홍길동)"></textarea>
+  <textarea id="newRenter" rows="2" placeholder="대여자 정보 입력"></textarea>
   <button onclick="addRenter()">대여자 추가</button>
 </div>
 
 <div id="renterList"></div>
 
-<script>
+<script type="module">
+/* ================= Firebase ================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCZ7apk2yZqGsDk4cp2hXr_4YQ4_KMiHxU",
+  authDomain: "guild-d5452.firebaseapp.com",
+  databaseURL: "https://guild-d5452-default-rtdb.firebaseio.com",
+  projectId: "guild-d5452",
+  storageBucket: "guild-d5452.appspot.com",
+  messagingSenderId: "812660318774",
+  appId: "1:812660318774:web:f517ea080b431b5402ee97"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const coresRef = ref(db, "cores");
+const rentersRef = ref(db, "renters");
+
+/* ================= 상태 ================= */
 const PASSWORD = "030219";
 let isAdmin = false;
+let cores = [];
+let renters = [];
 
-/* ================= 공용코어 데이터 ================= */
+/* ================= UI ================= */
+window.toggleLogin = () => loginBox.classList.toggle("hidden");
 
-const defaultCores = [
-`191 (미)힘 네오삐에볼`,
-`191 (짐)운 네오민트호냥`,
-`193 날 켈베로스`,
-`192 (식)운 뷔로사(폭주 믹스 예정)`,
-`192 (새)힘 미카엘(폭주 믹스 예정)`,
-`192 (새)정 미카엘(뉴갈 믹스 예정)`,
-`193 (악)속 사다귀`,
-`193 (미)속 제스터(폭주 믹스 예정)`,
-`193 (미)힘 제스터(폭주 믹스 예정)`,
-`193 (미)힘 티어스`,
-`194 (곤)운 호타루(폭주 믹스 예정)`,
-`194 (곤)석 루카누(폭주 믹스 예정)`,
-`195 (드)운 요르문(폭주 믹스 예정)`,
-`195 (드)운 요르문(폭주 믹스 예정)`,
-`195 (메)힘 발록(폭주 믹스 예정)`,
-`196 (악)운 환영마녀`,
-`196 (악)날 환영마녀`,
-`196 (악)속 다크리벤`,
-`196 (악)정 네오오르데빌`,
-`198 (식)힘 폭주뷔로사`,
-`198 (식)운 폭주뷔로사`,
-`198 (새)정 폭주미카엘`,
-`198 (메)힘 네오메탈리카`,
-`199 (식)속 지니`,
-`199 (미)힘 폭주 제스터`,
-`200 (미)속 폭주스노균`,
-`200 (악)정 폭주루시퍼`,
-`200 (곤)운 폭주호타루`,
-`200 (짐)날 폭주 나굴이`,
-`201 (메)운 폭주발록`,
-`201 (메)힘 폭주발록`,
-`201 (드)속 폭주요르문`,
-`201 (드)날 폭주파이어드래곤(2콰)`,
-`205 (메)날 뉴메탈탱크`,
-`205 (새)날 불멸윙클레셔(1콰)`,
-`210 (곤)운 불멸집게마왕`,
-`210 (짐)날 데미헬파드`,
-`221 (식)날 불멸클로라(1콰)`,
-`221 (악)날 불멸베레스(1콰)`,
-`223 (드)날 불멸아리만트(2콰)`,
-`-----후원------`,
-`(코래)198 (드)속 뉴가루곤`,
-`(코래)197 (식)날 뉴블루덤블`,
-`(코래)200 (악)날 폭주루시퍼`,
-`(코래)210 (곤)운 불멸집게마왕`,
-`(ajrrl) 193(미)날 제스터`,
-`(ajrrl) 199(미)날 폭주제스터`
-];
-
-let cores = JSON.parse(localStorage.getItem("cores")) || defaultCores;
-let renters = JSON.parse(localStorage.getItem("renters")) || [];
-
-function saveCores(){ localStorage.setItem("cores", JSON.stringify(cores)); }
-function saveRenters(){ localStorage.setItem("renters", JSON.stringify(renters)); }
-
-/* ================= 관리자 ================= */
-
-function toggleLogin(){
-  loginBox.classList.toggle("hidden");
-}
-
-function login(){
+/* ================= 로그인 ================= */
+window.login = () => {
   if(pw.value === PASSWORD){
     isAdmin = true;
-    loginBox.classList.add("hidden");
     editor.classList.remove("hidden");
     renterEditor.classList.remove("hidden");
+    loginBox.classList.add("hidden");
     renderCores();
     renderRenters();
   } else alert("비밀번호 오류");
-}
+};
+
+/* ================= Firebase 실시간 ================= */
+onValue(coresRef, snap => {
+  cores = snap.val() || [];
+  renderCores();
+});
+
+onValue(rentersRef, snap => {
+  renters = snap.val() || [];
+  renderRenters();
+});
 
 /* ================= 파싱 ================= */
-
 function parseCore(text){
   let cleaned = text.replace(/^\([^)]*\)\s*/, '');
   const m = cleaned.match(/^(\d+)\s*\(([^)]+)\)([^\s]+)?\s*(.*)$/);
@@ -192,29 +159,30 @@ function parseCore(text){
 }
 
 /* ================= 공용코어 ================= */
-
-function addCore(){
+window.addCore = () => {
   if(!newText.value.trim()) return;
-  cores.push(newText.value.trim());
+  set(coresRef, [...cores, newText.value.trim()]);
   newText.value="";
-  saveCores(); renderCores();
-}
+};
 
-function editCore(i){
+window.editCore = i => {
   const v = prompt("수정", cores[i]);
-  if(v){ cores[i]=v; saveCores(); renderCores(); }
-}
+  if(v){
+    cores[i]=v;
+    set(coresRef, cores);
+  }
+};
 
-function delCore(i){
+window.delCore = i => {
   if(confirm("삭제?")){
     cores.splice(i,1);
-    saveCores(); renderCores();
+    set(coresRef, cores);
   }
-}
+};
 
 function renderCores(){
-  const q = search.value.trim().toLowerCase();
   coreList.innerHTML="";
+  const q = search.value.trim().toLowerCase();
 
   cores.forEach((t,i)=>{
     const p = parseCore(t);
@@ -241,25 +209,26 @@ function renderCores(){
 }
 
 /* ================= 대여자 ================= */
-
-function addRenter(){
+window.addRenter = () => {
   if(!newRenter.value.trim()) return;
-  renters.push(newRenter.value.trim());
+  set(rentersRef, [...renters, newRenter.value.trim()]);
   newRenter.value="";
-  saveRenters(); renderRenters();
-}
+};
 
-function editRenter(i){
+window.editRenter = i => {
   const v = prompt("수정", renters[i]);
-  if(v){ renters[i]=v; saveRenters(); renderRenters(); }
-}
+  if(v){
+    renters[i]=v;
+    set(rentersRef, renters);
+  }
+};
 
-function delRenter(i){
+window.delRenter = i => {
   if(confirm("삭제?")){
     renters.splice(i,1);
-    saveRenters(); renderRenters();
+    set(rentersRef, renters);
   }
-}
+};
 
 function renderRenters(){
   renterList.innerHTML="";
@@ -274,10 +243,6 @@ function renderRenters(){
     renterList.appendChild(d);
   });
 }
-
-/* 초기 실행 */
-renderCores();
-renderRenters();
 </script>
 
 </body>
