@@ -55,11 +55,11 @@ input, textarea {
 
 .hidden { display:none; }
 
-/* 관리자 버튼 */
 #adminBtn {
   position:fixed;
   top:10px;
   right:10px;
+  width:auto;
   padding:6px 10px;
   font-size:0.8rem;
   opacity:0.8;
@@ -69,29 +69,30 @@ input, textarea {
 
 <body>
 
-<button id="adminBtn" onclick="toggleLogin()">관리자</button>
+<button id="adminBtn">관리자</button>
 
 <h1>길드 공용코어 목록</h1>
 <p class="tag">고철리카 문의 : 똘형</p>
 
-<div id="loginBox" class="admin hidden">
+<div id="login" class="admin hidden">
   <input type="password" id="pw" placeholder="관리자 비밀번호">
-  <button onclick="adminLogin()">접속</button>
+  <button id="loginBtn">접속</button>
 </div>
 
 <div id="editor" class="admin hidden">
   <textarea id="newText" rows="2" placeholder="새 공용코어 입력"></textarea>
-  <button onclick="addCore()">공용코어 추가</button>
+  <button id="addCoreBtn">공용코어 추가</button>
 </div>
 
-<input type="text" id="search" placeholder="검색" oninput="renderCores()">
+<input type="text" id="search" placeholder="검색 (짐 / 드 / 악 / 메 / 미 / 새 / 곤 / 힘 / 200 / 제스터)">
+
 <div id="coreList"></div>
 
 <h2>코어 대여자 목록</h2>
 
 <div id="renterEditor" class="admin hidden">
   <textarea id="newRenter" rows="2" placeholder="대여자 정보 입력"></textarea>
-  <button onclick="addRenter()">대여자 추가</button>
+  <button id="addRenterBtn">대여자 추가</button>
 </div>
 
 <div id="renterList"></div>
@@ -116,112 +117,135 @@ const db = getDatabase(app);
 const coresRef = ref(db, "cores");
 const rentersRef = ref(db, "renters");
 
-/* ================= DOM ================= */
-const loginBox = document.getElementById("loginBox");
-const editor = document.getElementById("editor");
-const renterEditor = document.getElementById("renterEditor");
-
 /* ================= 상태 ================= */
 const PASSWORD = "030219";
 let isAdmin = false;
 let cores = [];
 let renters = [];
 
-/* ================= 관리자 ================= */
-window.toggleLogin = () => loginBox.classList.toggle("hidden");
+/* ================= DOM ================= */
+const loginBox = document.getElementById("login");
+const editor = document.getElementById("editor");
+const renterEditor = document.getElementById("renterEditor");
+const coreList = document.getElementById("coreList");
+const renterList = document.getElementById("renterList");
+const search = document.getElementById("search");
 
-window.adminLogin = () => {
-  if(pw.value === PASSWORD){
+/* ================= 관리자 ================= */
+document.getElementById("adminBtn").onclick = () => {
+  loginBox.classList.toggle("hidden");
+};
+
+document.getElementById("loginBtn").onclick = () => {
+  if (document.getElementById("pw").value === PASSWORD) {
     isAdmin = true;
     editor.classList.remove("hidden");
     renterEditor.classList.remove("hidden");
     loginBox.classList.add("hidden");
     renderCores();
     renderRenters();
-  } else alert("비밀번호 오류");
+  } else {
+    alert("비밀번호 오류");
+  }
 };
 
-/* ================= 실시간 동기화 ================= */
-onValue(coresRef, s => {
-  cores = s.val() || [];
+/* ================= Firebase 실시간 ================= */
+onValue(coresRef, snap => {
+  cores = snap.val() || [];
   renderCores();
 });
 
-onValue(rentersRef, s => {
-  renters = s.val() || [];
+onValue(rentersRef, snap => {
+  renters = snap.val() || [];
   renderRenters();
 });
 
 /* ================= 파싱 ================= */
 function parseCore(text){
-  let cleaned = text.replace(/^\([^)]*\)\s*/, '');
-  const m = cleaned.match(/^(\d+)\s*\(([^)]+)\)([^\s]+)?\s*(.*)$/);
-  if(!m) return null;
-  return { level:m[1], type:m[2], attr:m[3]||"", name:m[4]||"" };
+  const m = text.match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : 9999;
 }
 
 /* ================= 공용코어 ================= */
-window.addCore = () => {
-  if(!newText.value.trim()) return;
+document.getElementById("addCoreBtn").onclick = () => {
+  if (!newText.value.trim()) return;
   set(coresRef, [...cores, newText.value.trim()]);
-  newText.value="";
+  newText.value = "";
 };
+
+function renderCores(){
+  coreList.innerHTML = "";
+  const q = search.value.trim().toLowerCase();
+
+  const sorted = [...cores].sort((a,b)=>parseCore(a)-parseCore(b));
+
+  sorted.forEach((t)=>{
+    if(q && !t.toLowerCase().includes(q)) return;
+
+    const i = cores.indexOf(t);
+    const d = document.createElement("div");
+    d.className = "item";
+    d.innerHTML = `<div>${t}</div>` +
+      (isAdmin ? `<div class="row">
+        <button onclick="editCore(${i})">수정</button>
+        <button onclick="delCore(${i})">삭제</button>
+      </div>` : "");
+    coreList.appendChild(d);
+  });
+}
 
 window.editCore = i => {
   const v = prompt("수정", cores[i]);
-  if(v){ cores[i]=v; set(coresRef, cores); }
+  if(v){
+    cores[i] = v;
+    set(coresRef, cores);
+  }
 };
 
 window.delCore = i => {
-  if(confirm("삭제?")){ cores.splice(i,1); set(coresRef, cores); }
-};
-
-window.renderCores = () => {
-  coreList.innerHTML="";
-  const q = search.value.trim().toLowerCase();
-
-  cores.forEach((t,i)=>{
-    if(q && !t.toLowerCase().includes(q)) return;
-    const d=document.createElement("div");
-    d.className="item";
-    d.innerHTML=`<div>${t}</div>`+
-      (isAdmin?`<div class="row">
-        <button onclick="editCore(${i})">수정</button>
-        <button onclick="delCore(${i})">삭제</button>
-      </div>`:"");
-    coreList.appendChild(d);
-  });
+  if(confirm("삭제?")){
+    cores.splice(i,1);
+    set(coresRef, cores);
+  }
 };
 
 /* ================= 대여자 ================= */
-window.addRenter = () => {
-  if(!newRenter.value.trim()) return;
+document.getElementById("addRenterBtn").onclick = () => {
+  if (!newRenter.value.trim()) return;
   set(rentersRef, [...renters, newRenter.value.trim()]);
-  newRenter.value="";
+  newRenter.value = "";
 };
+
+function renderRenters(){
+  renterList.innerHTML = "";
+  renters.forEach((r,i)=>{
+    const d = document.createElement("div");
+    d.className = "item";
+    d.innerHTML = `<div>${r}</div>` +
+      (isAdmin ? `<div class="row">
+        <button onclick="editRenter(${i})">수정</button>
+        <button onclick="delRenter(${i})">삭제</button>
+      </div>` : "");
+    renterList.appendChild(d);
+  });
+}
 
 window.editRenter = i => {
   const v = prompt("수정", renters[i]);
-  if(v){ renters[i]=v; set(rentersRef, renters); }
+  if(v){
+    renters[i] = v;
+    set(rentersRef, renters);
+  }
 };
 
 window.delRenter = i => {
-  if(confirm("삭제?")){ renters.splice(i,1); set(rentersRef, renters); }
+  if(confirm("삭제?")){
+    renters.splice(i,1);
+    set(rentersRef, renters);
+  }
 };
 
-window.renderRenters = () => {
-  renterList.innerHTML="";
-  renters.forEach((r,i)=>{
-    const d=document.createElement("div");
-    d.className="item";
-    d.innerHTML=`<div>${r}</div>`+
-      (isAdmin?`<div class="row">
-        <button onclick="editRenter(${i})">수정</button>
-        <button onclick="delRenter(${i})">삭제</button>
-      </div>`:"");
-    renterList.appendChild(d);
-  });
-};
+search.oninput = renderCores;
 </script>
 
 </body>
